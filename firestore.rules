@@ -1,0 +1,118 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+    
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+    
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+    
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+    
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    
+    function isValidUser() {
+      let data = request.resource.data;
+      return hasRequiredFields(['uid', 'email', 'name', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 128 &&
+             data.email is string && isValidEmail(data.email) && data.email.size() < 256 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.createdAt is timestamp &&
+             (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() < 1024)) &&
+             (!('followersCount' in data) || (data.followersCount is number && data.followersCount >= 0)) &&
+             (!('followingCount' in data) || (data.followingCount is number && data.followingCount >= 0));
+    }
+    
+    function isValidPlaylist() {
+      let data = request.resource.data;
+      return hasRequiredFields(['title', 'ownerId', 'isPublic', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.ownerId is string && data.ownerId == request.auth.uid &&
+             data.isPublic is bool &&
+             data.createdAt is timestamp &&
+             (!('description' in data) || (data.description is string && data.description.size() < 1000)) &&
+             (!('coverUrl' in data) || (data.coverUrl is string && data.coverUrl.size() < 1024)) &&
+             (!('tracks' in data) || (data.tracks is list && data.tracks.size() < 10000));
+    }
+    
+    function isValidLikedSong() {
+      let data = request.resource.data;
+      return hasRequiredFields(['id', 'likedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 128 &&
+             data.likedAt is timestamp;
+    }
+
+    function isValidRecentlyPlayed() {
+      let data = request.resource.data;
+      return hasRequiredFields(['id', 'playedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 128 &&
+             data.playedAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    
+    match /users/{userId} {
+      // Users can only read their own profile (to protect email/PII)
+      // If public profiles are needed, denormalize or create a separate public collection
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser() && uidUnchanged();
+      allow update: if isOwner(userId) && isValidUser() && uidNotModified() && 
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isOwner(userId);
+      
+      match /liked_songs/{trackId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidLikedSong();
+        allow update: if isOwner(userId) && isValidLikedSong();
+        allow delete: if isOwner(userId);
+      }
+
+      match /recently_played/{trackId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidRecentlyPlayed();
+        allow update: if isOwner(userId) && isValidRecentlyPlayed();
+        allow delete: if isOwner(userId);
+      }
+    }
+    
+    match /playlists/{playlistId} {
+      // Anyone can read public playlists, but only the owner can read private ones
+      allow read: if isAuthenticated() && (resource.data.isPublic == true || resource.data.ownerId == request.auth.uid);
+      allow create: if isAuthenticated() && isValidPlaylist();
+      allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid && isValidPlaylist() &&
+                    request.resource.data.ownerId == resource.data.ownerId &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+    }
+  }
+}

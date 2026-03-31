@@ -1,0 +1,125 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user profile in the application.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The unique identifier for the user."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "name": {
+          "type": "string",
+          "description": "The user's full name."
+        },
+        "photoUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL of the user's profile picture."
+        },
+        "followersCount": {
+          "type": "number",
+          "description": "Number of followers."
+        },
+        "followingCount": {
+          "type": "number",
+          "description": "Number of users followed."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The date and time the user was created."
+        }
+      },
+      "required": ["uid", "email", "name", "createdAt"]
+    },
+    "Playlist": {
+      "title": "Playlist",
+      "description": "A playlist created by a user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique identifier for the playlist."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the playlist."
+        },
+        "description": {
+          "type": "string",
+          "description": "The description of the playlist."
+        },
+        "coverUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL of the playlist cover image."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "The UID of the user who created the playlist."
+        },
+        "isPublic": {
+          "type": "boolean",
+          "description": "Whether the playlist is public."
+        },
+        "tracks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Array of track IDs in the playlist."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The date and time the playlist was created."
+        }
+      },
+      "required": ["id", "title", "ownerId", "isPublic", "createdAt"]
+    },
+    "LikedSong": {
+      "title": "Liked Song",
+      "description": "A song liked by a user.",
+      "type": "object",
+      "properties": {
+        "trackId": {
+          "type": "string",
+          "description": "The ID of the liked track."
+        },
+        "likedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The date and time the track was liked."
+        }
+      },
+      "required": ["trackId", "likedAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "Stores user profiles."
+    },
+    "playlists/{playlistId}": {
+      "schema": {
+        "$ref": "#/entities/Playlist"
+      },
+      "description": "Stores playlists created by users."
+    },
+    "users/{userId}/liked_songs/{trackId}": {
+      "schema": {
+        "$ref": "#/entities/LikedSong"
+      },
+      "description": "Stores tracks liked by a specific user."
+    }
+  }
+}
